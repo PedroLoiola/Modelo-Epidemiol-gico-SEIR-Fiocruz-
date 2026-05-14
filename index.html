@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador SEIR por Autômato Celular</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(255,255,255,0.075);
+      --panel-strong: rgba(255,255,255,0.11);
+      --text: #eef3ff;
+      --muted: #aab4cc;
+      --line: rgba(255,255,255,0.14);
+      --s: #8fb3ff;
+      --e: #ffd166;
+      --i: #ef476f;
+      --r: #06d6a0;
+      --empty: rgba(255,255,255,0.05);
+      --shadow: 0 20px 50px rgba(0,0,0,0.35);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(6,214,160,0.20), transparent 35%),
+        radial-gradient(circle at top right, rgba(143,179,255,0.18), transparent 32%),
+        linear-gradient(135deg, #08111f 0%, #12172c 55%, #111827 100%);
+    }
+
+    header {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 34px 24px 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 4.2rem);
+      letter-spacing: -0.06em;
+      line-height: 0.95;
+    }
+
+    .subtitle {
+      margin: 14px 0 0;
+      max-width: 860px;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.55;
+    }
+
+    main {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 20px 24px 44px;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--panel), rgba(255,255,255,0.045));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .controls {
+      padding: 20px;
+      position: sticky;
+      top: 18px;
+    }
+
+    .section-title {
+      font-size: 0.82rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 14px;
+    }
+
+    .control {
+      padding: 14px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .control:first-of-type {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      font-weight: 650;
+      font-size: 0.95rem;
+    }
+
+    label span:last-child {
+      color: var(--muted);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 12px 0 0;
+      accent-color: #8fb3ff;
+    }
+
+    input[type="number"], select {
+      width: 100%;
+      margin-top: 10px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    select option {
+      background: #111827;
+      color: white;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.09);
+      color: var(--text);
+      padding: 11px 12px;
+      border-radius: 15px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.15);
+      border-color: rgba(255,255,255,0.28);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, rgba(6,214,160,0.32), rgba(143,179,255,0.26));
+      grid-column: span 2;
+    }
+
+    .workspace {
+      display: grid;
+      gap: 20px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      padding: 16px;
+      min-height: 92px;
+    }
+
+    .metric .name {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 7px;
+    }
+
+    .metric .value {
+      font-size: 1.55rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+    }
+
+    .metric .pct {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 3px;
+    }
+
+    .visual-grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 1.15fr) minmax(280px, 0.85fr);
+      gap: 20px;
+    }
+
+    .canvas-card, .chart-card, .text-card {
+      padding: 18px;
+    }
+
+    .canvas-wrap {
+      width: 100%;
+      aspect-ratio: 1/1;
+      border-radius: 18px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid var(--line);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .chart-wrap {
+      height: 270px;
+      border-radius: 18px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid var(--line);
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      margin-top: 13px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    details {
+      border-top: 1px solid var(--line);
+      padding: 15px 0;
+    }
+
+    details:first-of-type { border-top: 0; }
+
+    summary {
+      cursor: pointer;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    details p, .text-card p, .text-card li {
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 0.94rem;
+    }
+
+    .refs {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+
+    .status {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.065);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.92rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 11px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 1080px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      .controls {
+        position: static;
+      }
+      .metrics {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .visual-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 620px) {
+      header, main {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+      .buttons {
+        grid-template-columns: 1fr;
+      }
+      button.primary {
+        grid-column: span 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="badge">Modelo didático • SEIR espacial • Autômato celular</div>
+    <h1>Simulador SEIR por Autômato Celular</h1>
+    <p class="subtitle">
+      Modelo espacial interativo para explorar como taxa de transmissão, período de incubação,
+      duração da infecção e tipo de vizinhança alteram a propagação epidêmica em uma população estruturada em grade.
+    </p>
+  </header>
+
+  <main>
+    <aside class="card controls">
+      <p class="section-title">Parâmetros do modelo</p>
+
+      <div class="control">
+        <label for="population">População <span id="populationValue"></span></label>
+        <input id="population" type="range" min="100" max="10000" step="100" value="2500" />
+        <input id="populationNumber" type="number" min="10" max="10000" step="10" value="2500" />
+      </div>
+
+      <div class="control">
+        <label for="initialInfected">Infectados iniciais <span id="initialInfectedValue"></span></label>
+        <input id="initialInfected" type="range" min="1" max="250" step="1" value="12" />
+        <input id="initialInfectedNumber" type="number" min="1" max="10000" step="1" value="12" />
+      </div>
+
+      <div class="control">
+        <label for="beta">Taxa de transmissão β <span id="betaValue"></span></label>
+        <input id="beta" type="range" min="0" max="1" step="0.01" value="0.25" />
+      </div>
+
+      <div class="control">
+        <label for="incubation">Tempo de incubação <span id="incubationValue"></span></label>
+        <input id="incubation" type="range" min="1" max="20" step="1" value="4" />
+      </div>
+
+      <div class="control">
+        <label for="infectious">Tempo de infecção <span id="infectiousValue"></span></label>
+        <input id="infectious" type="range" min="1" max="30" step="1" value="7" />
+      </div>
+
+      <div class="control">
+        <label for="neighborhood">Vizinhança <span></span></label>
+        <select id="neighborhood">
+          <option value="moore">Moore — 8 vizinhos</option>
+          <option value="vonneumann">Von Neumann — 4 vizinhos</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label for="speed">Velocidade <span id="speedValue"></span></label>
+        <input id="speed" type="range" min="1" max="20" step="1" value="6" />
+      </div>
+
+      <div class="buttons">
+        <button class="primary" id="toggle">Iniciar</button>
+        <button id="step">Avançar 1 passo</button>
+        <button id="reset">Resetar</button>
+      </div>
+
+      <div class="status" id="statusBox">
+        Ajuste os parâmetros e clique em iniciar. A simulação pausa automaticamente quando não há mais indivíduos expostos ou infectados.
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <div class="metrics">
+        <div class="card metric">
+          <div class="name">Suscetíveis</div>
+          <div class="value" id="sCount">0</div>
+          <div class="pct" id="sPct">0%</div>
+        </div>
+        <div class="card metric">
+          <div class="name">Expostos</div>
+          <div class="value" id="eCount">0</div>
+          <div class="pct" id="ePct">0%</div>
+        </div>
+        <div class="card metric">
+          <div class="name">Infectados</div>
+          <div class="value" id="iCount">0</div>
+          <div class="pct" id="iPct">0%</div>
+        </div>
+        <div class="card metric">
+          <div class="name">Recuperados</div>
+          <div class="value" id="rCount">0</div>
+          <div class="pct" id="rPct">0%</div>
+        </div>
+        <div class="card metric">
+          <div class="name">Pico de infectados</div>
+          <div class="value" id="peakCount">0</div>
+          <div class="pct" id="stepCount">Passo 0</div>
+        </div>
+      </div>
+
+      <div class="visual-grid">
+        <div class="card canvas-card">
+          <p class="section-title">Grade espacial</p>
+          <div class="canvas-wrap">
+            <canvas id="gridCanvas"></canvas>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><span class="dot" style="background: var(--s)"></span>Suscetível</span>
+            <span class="legend-item"><span class="dot" style="background: var(--e)"></span>Exposto</span>
+            <span class="legend-item"><span class="dot" style="background: var(--i)"></span>Infectado</span>
+            <span class="legend-item"><span class="dot" style="background: var(--r)"></span>Recuperado</span>
+          </div>
+        </div>
+
+        <div class="card chart-card">
+          <p class="section-title">Curvas SEIR</p>
+          <div class="chart-wrap">
+            <canvas id="chartCanvas"></canvas>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><span class="dot" style="background: var(--s)"></span>S</span>
+            <span class="legend-item"><span class="dot" style="background: var(--e)"></span>E</span>
+            <span class="legend-item"><span class="dot" style="background: var(--i)"></span>I</span>
+            <span class="legend-item"><span class="dot" style="background: var(--r)"></span>R</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card text-card">
+        <p class="section-title">Como interpretar o modelo</p>
+
+        <details open>
+          <summary>Como as variáveis alteram a epidemia?</summary>
+          <p>
+            O tamanho da população altera a área espacial disponível para propagação. Populações maiores tendem a gerar padrões
+            espaciais mais complexos. A taxa de transmissão β aumenta a chance de um suscetível tornar-se exposto ao entrar em contato
+            com vizinhos infecciosos. Valores mais altos de β costumam elevar a velocidade de crescimento e o pico epidêmico.
+          </p>
+          <p>
+            O tempo de incubação controla a permanência no estado E antes da infecciosidade; incubações longas atrasam a curva de I.
+            O tempo de infecção controla por quanto tempo uma célula transmite; durações maiores ampliam a janela de transmissão.
+          </p>
+        </details>
+
+        <details>
+          <summary>Moore versus Von Neumann</summary>
+          <p>
+            A vizinhança de Moore considera oito vizinhos ao redor da célula, aumentando a conectividade local e facilitando a propagação.
+            A vizinhança de Von Neumann considera apenas quatro vizinhos ortogonais, reduzindo o número de contatos e geralmente tornando
+            a disseminação mais lenta e restrita.
+          </p>
+        </details>
+
+        <details>
+          <summary>Limitações</summary>
+          <p>
+            Este simulador é didático e exploratório. Ele não deve ser usado como ferramenta preditiva sem calibração empírica.
+            A versão atual não inclui idade, mobilidade, heterogeneidade social, vacinação, mortalidade, reinfecção, assintomáticos
+            ou redes reais de contato. Os passos temporais só equivalem a dias se essa equivalência for assumida explicitamente.
+          </p>
+        </details>
+
+        <details>
+          <summary>Base científica</summary>
+          <p>
+            O modelo combina a tradição dos modelos compartimentais SIR/SEIR com autômatos celulares espaciais.
+            Referências consolidadas:
+          </p>
+          <ul class="refs">
+            <li>KERMACK, W. O.; MCKENDRICK, A. G. A contribution to the mathematical theory of epidemics. <em>Proceedings of the Royal Society A</em>, 1927.</li>
+            <li>HETHCOTE, H. W. The mathematics of infectious diseases. <em>SIAM Review</em>, 2000.</li>
+            <li>ANDERSON, R. M.; MAY, R. M. <em>Infectious Diseases of Humans: Dynamics and Control</em>. Oxford University Press, 1991.</li>
+            <li>SIRAKOULIS, G. C.; KARAFYLLIDIS, I.; THANAILAKIS, A. A cellular automaton model for the effects of population movement and vaccination on epidemic propagation. <em>Ecological Modelling</em>, 2000.</li>
+            <li>WHITE, S. H.; DEL REY, A. M.; SÁNCHEZ, G. R. Modeling epidemics using cellular automata. <em>Applied Mathematics and Computation</em>, 2007.</li>
+          </ul>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const STATES = { S: 0, E: 1, I: 2, R: 3, EMPTY: 4 };
+    const colors = {
+      [STATES.S]: getCSS("--s"),
+      [STATES.E]: getCSS("--e"),
+      [STATES.I]: getCSS("--i"),
+      [STATES.R]: getCSS("--r"),
+      [STATES.EMPTY]: getCSS("--empty")
+    };
+
+    function getCSS(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    const els = {
+      population: document.getElementById("population"),
+      populationNumber: document.getElementById("populationNumber"),
+      initialInfected: document.getElementById("initialInfected"),
+      initialInfectedNumber: document.getElementById("initialInfectedNumber"),
+      beta: document.getElementById("beta"),
+      incubation: document.getElementById("incubation"),
+      infectious: document.getElementById("infectious"),
+      neighborhood: document.getElementById("neighborhood"),
+      speed: document.getElementById("speed"),
+      toggle: document.getElementById("toggle"),
+      step: document.getElementById("step"),
+      reset: document.getElementById("reset"),
+      statusBox: document.getElementById("statusBox"),
+      gridCanvas: document.getElementById("gridCanvas"),
+      chartCanvas: document.getElementById("chartCanvas"),
+      populationValue: document.getElementById("populationValue"),
+      initialInfectedValue: document.getElementById("initialInfectedValue"),
+      betaValue: document.getElementById("betaValue"),
+      incubationValue: document.getElementById("incubationValue"),
+      infectiousValue: document.getElementById("infectiousValue"),
+      speedValue: document.getElementById("speedValue"),
+      sCount: document.getElementById("sCount"),
+      eCount: document.getElementById("eCount"),
+      iCount: document.getElementById("iCount"),
+      rCount: document.getElementById("rCount"),
+      peakCount: document.getElementById("peakCount"),
+      stepCount: document.getElementById("stepCount"),
+      sPct: document.getElementById("sPct"),
+      ePct: document.getElementById("ePct"),
+      iPct: document.getElementById("iPct"),
+      rPct: document.getElementById("rPct")
+    };
+
+    const gridCtx = els.gridCanvas.getContext("2d");
+    const chartCtx = els.chartCanvas.getContext("2d");
+
+    let grid = [];
+    let rows = 0;
+    let cols = 0;
+    let activePopulation = 2500;
+    let running = false;
+    let timer = null;
+    let stepNumber = 0;
+    let peakI = 0;
+    let history = [];
+
+    function params() {
+      const population = clamp(parseInt(els.population.value, 10) || 2500, 10, 10000);
+      const initial = clamp(parseInt(els.initialInfected.value, 10) || 1, 1, population);
+      return {
+        population,
+        initial,
+        beta: clamp(parseFloat(els.beta.value) || 0, 0, 1),
+        incubation: Math.max(1, parseInt(els.incubation.value, 10) || 1),
+        infectious: Math.max(1, parseInt(els.infectious.value, 10) || 1),
+        neighborhood: els.neighborhood.value,
+        speed: Math.max(1, parseInt(els.speed.value, 10) || 6)
+      };
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function syncLabels() {
+      const p = params();
+      els.populationValue.textContent = p.population.toLocaleString("pt-BR");
+      els.populationNumber.value = p.population;
+      els.initialInfected.max = p.population;
+      els.initialInfectedNumber.max = p.population;
+      els.initialInfectedValue.textContent = p.initial.toLocaleString("pt-BR");
+      els.initialInfectedNumber.value = p.initial;
+      els.betaValue.textContent = p.beta.toFixed(2);
+      els.incubationValue.textContent = `${p.incubation} passos`;
+      els.infectiousValue.textContent = `${p.infectious} passos`;
+      els.speedValue.textContent = `${p.speed}x`;
+    }
+
+    function createInitialGrid() {
+      const p = params();
+      activePopulation = p.population;
+      cols = Math.ceil(Math.sqrt(activePopulation));
+      rows = Math.ceil(activePopulation / cols);
+      grid = Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => {
+          const idx = r * cols + c;
+          if (idx >= activePopulation) return { state: STATES.EMPTY, t: 0 };
+          return { state: STATES.S, t: 0 };
+        })
+      );
+
+      const chosen = new Set();
+      while (chosen.size < p.initial) {
+        chosen.add(Math.floor(Math.random() * activePopulation));
+      }
+
+      for (const idx of chosen) {
+        const r = Math.floor(idx / cols);
+        const c = idx % cols;
+        grid[r][c] = { state: STATES.I, t: 0 };
+      }
+
+      running = false;
+      stepNumber = 0;
+      peakI = p.initial;
+      history = [];
+      updateAll();
+      els.toggle.textContent = "Iniciar";
+      els.statusBox.textContent = "Simulação resetada. Ajuste os parâmetros e clique em iniciar.";
+    }
+
+    function getNeighbors(r, c, neighborhood) {
+      const offsets = neighborhood === "vonneumann"
+        ? [[-1,0],[1,0],[0,-1],[0,1]]
+        : [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+
+      const n = [];
+      for (const [dr, dc] of offsets) {
+        const rr = r + dr;
+        const cc = c + dc;
+        if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) {
+          if (grid[rr][cc].state !== STATES.EMPTY) n.push(grid[rr][cc]);
+        }
+      }
+      return n;
+    }
+
+    function stepSimulation() {
+      const p = params();
+      const next = grid.map(row => row.map(cell => ({ ...cell })));
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cell = grid[r][c];
+
+          if (cell.state === STATES.EMPTY) continue;
+
+          if (cell.state === STATES.S) {
+            const infectedNeighbors = getNeighbors(r, c, p.neighborhood)
+              .filter(n => n.state === STATES.I).length;
+            const infectionProbability = 1 - Math.pow(1 - p.beta, infectedNeighbors);
+            if (Math.random() < infectionProbability) {
+              next[r][c] = { state: STATES.E, t: 0 };
+            }
+          }
+
+          if (cell.state === STATES.E) {
+            const newT = cell.t + 1;
+            next[r][c] = newT >= p.incubation
+              ? { state: STATES.I, t: 0 }
+              : { state: STATES.E, t: newT };
+          }
+
+          if (cell.state === STATES.I) {
+            const newT = cell.t + 1;
+            next[r][c] = newT >= p.infectious
+              ? { state: STATES.R, t: 0 }
+              : { state: STATES.I, t: newT };
+          }
+        }
+      }
+
+      grid = next;
+      stepNumber++;
+      updateAll();
+
+      const counts = countCompartments();
+      if (counts.E === 0 && counts.I === 0) {
+        stop();
+        els.statusBox.textContent = "A simulação terminou: não há mais indivíduos expostos ou infectados.";
+      }
+    }
+
+    function countCompartments() {
+      const counts = { S: 0, E: 0, I: 0, R: 0 };
+      for (const row of grid) {
+        for (const cell of row) {
+          if (cell.state === STATES.S) counts.S++;
+          if (cell.state === STATES.E) counts.E++;
+          if (cell.state === STATES.I) counts.I++;
+          if (cell.state === STATES.R) counts.R++;
+        }
+      }
+      return counts;
+    }
+
+    function updateAll() {
+      syncLabels();
+      const counts = countCompartments();
+      peakI = Math.max(peakI, counts.I);
+      history.push({ step: stepNumber, ...counts });
+      if (history.length > 400) history.shift();
+
+      updateMetrics(counts);
+      drawGrid();
+      drawChart();
+    }
+
+    function updateMetrics(counts) {
+      const pct = (n) => ((n / activePopulation) * 100).toFixed(1).replace(".", ",") + "%";
+      els.sCount.textContent = counts.S.toLocaleString("pt-BR");
+      els.eCount.textContent = counts.E.toLocaleString("pt-BR");
+      els.iCount.textContent = counts.I.toLocaleString("pt-BR");
+      els.rCount.textContent = counts.R.toLocaleString("pt-BR");
+      els.peakCount.textContent = peakI.toLocaleString("pt-BR");
+      els.stepCount.textContent = `Passo ${stepNumber}`;
+      els.sPct.textContent = pct(counts.S);
+      els.ePct.textContent = pct(counts.E);
+      els.iPct.textContent = pct(counts.I);
+      els.rPct.textContent = pct(counts.R);
+    }
+
+    function resizeCanvasToDisplaySize(canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(rect.width * dpr);
+      const h = Math.round(rect.height * dpr);
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        return true;
+      }
+      return false;
+    }
+
+    function drawGrid() {
+      resizeCanvasToDisplaySize(els.gridCanvas);
+      const w = els.gridCanvas.width;
+      const h = els.gridCanvas.height;
+      gridCtx.clearRect(0, 0, w, h);
+      gridCtx.fillStyle = "rgba(255,255,255,0.025)";
+      gridCtx.fillRect(0, 0, w, h);
+
+      const cell = Math.max(1, Math.floor(Math.min(w / cols, h / rows)));
+      const gridW = cell * cols;
+      const gridH = cell * rows;
+      const ox = Math.floor((w - gridW) / 2);
+      const oy = Math.floor((h - gridH) / 2);
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const state = grid[r][c].state;
+          gridCtx.fillStyle = colors[state];
+          gridCtx.fillRect(ox + c * cell, oy + r * cell, Math.max(1, cell - 0.35), Math.max(1, cell - 0.35));
+        }
+      }
+    }
+
+    function drawChart() {
+      resizeCanvasToDisplaySize(els.chartCanvas);
+      const w = els.chartCanvas.width;
+      const h = els.chartCanvas.height;
+      chartCtx.clearRect(0, 0, w, h);
+      chartCtx.fillStyle = "rgba(255,255,255,0.025)";
+      chartCtx.fillRect(0, 0, w, h);
+
+      const pad = Math.max(30, Math.round(w * 0.05));
+      const top = 22;
+      const bottom = 34;
+      const plotW = w - pad * 2;
+      const plotH = h - top - bottom;
+
+      chartCtx.strokeStyle = "rgba(255,255,255,0.16)";
+      chartCtx.lineWidth = 1;
+      chartCtx.beginPath();
+      chartCtx.moveTo(pad, top);
+      chartCtx.lineTo(pad, top + plotH);
+      chartCtx.lineTo(pad + plotW, top + plotH);
+      chartCtx.stroke();
+
+      const maxY = Math.max(activePopulation, 1);
+      const xFor = (idx) => {
+        if (history.length <= 1) return pad;
+        return pad + (idx / (history.length - 1)) * plotW;
+      };
+      const yFor = (val) => top + plotH - (val / maxY) * plotH;
+
+      function line(key, color) {
+        if (history.length === 0) return;
+        chartCtx.strokeStyle = color;
+        chartCtx.lineWidth = 2.4 * (window.devicePixelRatio || 1);
+        chartCtx.beginPath();
+        history.forEach((d, idx) => {
+          const x = xFor(idx);
+          const y = yFor(d[key]);
+          if (idx === 0) chartCtx.moveTo(x, y);
+          else chartCtx.lineTo(x, y);
+        });
+        chartCtx.stroke();
+      }
+
+      line("S", colors[STATES.S]);
+      line("E", colors[STATES.E]);
+      line("I", colors[STATES.I]);
+      line("R", colors[STATES.R]);
+
+      chartCtx.fillStyle = "rgba(238,243,255,0.70)";
+      chartCtx.font = `${12 * (window.devicePixelRatio || 1)}px system-ui`;
+      chartCtx.fillText(`0`, pad - 12, top + plotH + 18);
+      chartCtx.fillText(`${activePopulation.toLocaleString("pt-BR")}`, pad - 18, top + 8);
+    }
+
+    function start() {
+      if (running) return;
+      running = true;
+      els.toggle.textContent = "Pausar";
+      els.statusBox.textContent = "Simulação em execução.";
+      loop();
+    }
+
+    function stop() {
+      running = false;
+      els.toggle.textContent = "Iniciar";
+      if (timer) clearTimeout(timer);
+      timer = null;
+    }
+
+    function loop() {
+      if (!running) return;
+      const p = params();
+      stepSimulation();
+      const delay = Math.max(20, 560 - p.speed * 26);
+      timer = setTimeout(loop, delay);
+    }
+
+    els.toggle.addEventListener("click", () => running ? stop() : start());
+    els.step.addEventListener("click", () => {
+      if (running) stop();
+      stepSimulation();
+      els.statusBox.textContent = "Um passo temporal foi executado.";
+    });
+    els.reset.addEventListener("click", createInitialGrid);
+
+    els.population.addEventListener("input", () => {
+      els.populationNumber.value = els.population.value;
+      if (parseInt(els.initialInfected.value, 10) > parseInt(els.population.value, 10)) {
+        els.initialInfected.value = els.population.value;
+      }
+      syncLabels();
+    });
+
+    els.populationNumber.addEventListener("change", () => {
+      els.population.value = clamp(parseInt(els.populationNumber.value, 10) || 2500, 10, 10000);
+      syncLabels();
+    });
+
+    els.initialInfected.addEventListener("input", () => {
+      els.initialInfectedNumber.value = els.initialInfected.value;
+      syncLabels();
+    });
+
+    els.initialInfectedNumber.addEventListener("change", () => {
+      els.initialInfected.value = clamp(parseInt(els.initialInfectedNumber.value, 10) || 1, 1, params().population);
+      syncLabels();
+    });
+
+    [els.beta, els.incubation, els.infectious, els.speed, els.neighborhood].forEach(el => {
+      el.addEventListener("input", syncLabels);
+      el.addEventListener("change", syncLabels);
+    });
+
+    window.addEventListener("resize", () => {
+      drawGrid();
+      drawChart();
+    });
+
+    createInitialGrid();
+  </script>
+</body>
+</html>
